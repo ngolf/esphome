@@ -1,5 +1,6 @@
-# Shared config for PID tests using level_and_direction_output (level + direction pins).
-# Derived from common.yaml (heat_output replaced by level_and_direction_output).
+# Shared config for PID tests using level_output + direction_output.
+# Derived from common.yaml (heat_output replaced by level_output/direction_output).
+
 esphome:
   on_boot:
     then:
@@ -19,12 +20,13 @@ esphome:
 output:
   - platform: slow_pwm
     pin: 4
-    id: pid_slow_pwm
+    id: pid_level_pwm
     period: 15s
     restart_cycle_on_state_change: false
+
   - platform: gpio
     pin: 5
-    id: pid_direction_pin
+    id: pid_direction_output
 
 sensor:
   - platform: template
@@ -43,9 +45,8 @@ climate:
     sensor: template_sensor1
     humidity_sensor: template_sensor1
     default_target_temperature: 21°C
-    level_and_direction_output:
-      level: pid_slow_pwm
-      direction: pid_direction_pin
+    level_output: pid_level_pwm
+    direction_output: pid_direction_output
     control_parameters:
       kp: 0.0
       ki: 0.0

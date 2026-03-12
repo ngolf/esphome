@@ -3,18 +3,13 @@ import esphome.codegen as cg
 from esphome.components import climate, output, sensor
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_DIRECTION,
     CONF_HUMIDITY_SENSOR,
     CONF_ID,
-    CONF_LEVEL,
     CONF_SENSOR,
 )
 
 pid_ns = cg.esphome_ns.namespace("pid")
 PIDClimate = pid_ns.class_("PIDClimate", climate.Climate, cg.Component)
-LevelAndDirectionOutput = pid_ns.class_(
-    "LevelAndDirectionOutput", cg.Component, output.LevelAndDirectionOutput
-)
 PIDAutotuneAction = pid_ns.class_("PIDAutotuneAction", automation.Action)
 PIDResetIntegralTermAction = pid_ns.class_(
     "PIDResetIntegralTermAction", automation.Action
@@ -32,7 +27,8 @@ CONF_KD = "kd"
 CONF_CONTROL_PARAMETERS = "control_parameters"
 CONF_COOL_OUTPUT = "cool_output"
 CONF_HEAT_OUTPUT = "heat_output"
-CONF_LEVEL_AND_DIRECTION_OUTPUT = "level_and_direction_output"
+CONF_LEVEL_OUTPUT = "level_output"
+CONF_DIRECTION_OUTPUT = "direction_output"
 CONF_NOISEBAND = "noiseband"
 CONF_POSITIVE_OUTPUT = "positive_output"
 CONF_NEGATIVE_OUTPUT = "negative_output"
@@ -52,13 +48,22 @@ CONF_KD_MULTIPLIER = "kd_multiplier"
 
 
 def _validate_pid_outputs(config):
-    if CONF_LEVEL_AND_DIRECTION_OUTPUT in config and (
-        CONF_COOL_OUTPUT in config or CONF_HEAT_OUTPUT in config
-    ):
+    if CONF_LEVEL_OUTPUT in config and CONF_DIRECTION_OUTPUT not in config:
         raise cv.Invalid(
-            "Cannot use both 'level_and_direction_output' and 'heat_output'/'cool_output'. "
-            "Use either level_and_direction_output or separate heat/cool outputs."
+            "When 'level_output' is set, 'direction_output' is required."
         )
+
+    level_direction_outputs_configured = (
+        CONF_LEVEL_OUTPUT in config or CONF_DIRECTION_OUTPUT in config
+    )
+    heat_cool_outputs_configured = CONF_COOL_OUTPUT in config or CONF_HEAT_OUTPUT in config
+
+    if level_direction_outputs_configured and heat_cool_outputs_configured:
+        raise cv.Invalid(
+            "Cannot use 'level_output'/'direction_output' together with "
+            "'heat_output'/'cool_output'."
+        )
+
     return config
 
 
@@ -68,13 +73,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
             cv.Optional(CONF_HUMIDITY_SENSOR): cv.use_id(sensor.Sensor),
             cv.Required(CONF_DEFAULT_TARGET_TEMPERATURE): cv.temperature,
-            cv.Optional(CONF_LEVEL_AND_DIRECTION_OUTPUT): cv.Schema(
-                {
-                    cv.GenerateID(): cv.declare_id(LevelAndDirectionOutput),
-                    cv.Required(CONF_LEVEL): cv.use_id(output.FloatOutput),
-                    cv.Required(CONF_DIRECTION): cv.use_id(output.BinaryOutput),
-                }
-            ),
+            cv.Optional(CONF_LEVEL_OUTPUT): cv.use_id(output.FloatOutput),
+            cv.Optional(CONF_DIRECTION_OUTPUT): cv.use_id(output.BinaryOutput),
             cv.Optional(CONF_COOL_OUTPUT): cv.use_id(output.FloatOutput),
             cv.Optional(CONF_HEAT_OUTPUT): cv.use_id(output.FloatOutput),
             cv.Optional(CONF_DEADBAND_PARAMETERS): cv.Schema(
@@ -103,12 +103,13 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ),
-    cv.All(
-        cv.has_at_least_one_key(
-            CONF_LEVEL_AND_DIRECTION_OUTPUT, CONF_COOL_OUTPUT, CONF_HEAT_OUTPUT
-        ),
-        _validate_pid_outputs,
+    cv.has_at_least_one_key(
+        CONF_LEVEL_OUTPUT,
+        CONF_DIRECTION_OUTPUT,
+        CONF_COOL_OUTPUT,
+        CONF_HEAT_OUTPUT,
     ),
+    _validate_pid_outputs,
 )
 
 
@@ -123,15 +124,12 @@ async def to_code(config):
         sens = await cg.get_variable(config[CONF_HUMIDITY_SENSOR])
         cg.add(var.set_humidity_sensor(sens))
 
-    if CONF_LEVEL_AND_DIRECTION_OUTPUT in config:
-        ldo_conf = config[CONF_LEVEL_AND_DIRECTION_OUTPUT]
-        ldo = cg.new_Pvariable(ldo_conf[CONF_ID])
-        await cg.register_component(ldo, ldo_conf)
-        level_out = await cg.get_variable(ldo_conf[CONF_LEVEL])
-        cg.add(ldo.set_level_output(level_out))
-        direction_out = await cg.get_variable(ldo_conf[CONF_DIRECTION])
-        cg.add(ldo.set_direction_output(direction_out))
-        cg.add(var.set_level_and_direction_output(ldo))
+    if CONF_LEVEL_OUTPUT in config:
+        out = await cg.get_variable(config[CONF_LEVEL_OUTPUT])
+        cg.add(var.set_level_output(out))
+    if CONF_DIRECTION_OUTPUT in config:
+        out = await cg.get_variable(config[CONF_DIRECTION_OUTPUT])
+        cg.add(var.set_direction_output(out))
     if CONF_COOL_OUTPUT in config:
         out = await cg.get_variable(config[CONF_COOL_OUTPUT])
         cg.add(var.set_cool_output(out))

@@ -5,8 +5,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/sensor/sensor.h"
+#include "esphome/components/output/binary_output.h"
 #include "esphome/components/output/float_output.h"
-#include "esphome/components/output/level_and_direction_output.h"
 #include "pid_controller.h"
 #include "pid_autotuner.h"
 
@@ -21,11 +21,10 @@ class PIDClimate : public climate::Climate, public Component {
 
   void set_sensor(sensor::Sensor *sensor) { sensor_ = sensor; }
   void set_humidity_sensor(sensor::Sensor *sensor) { humidity_sensor_ = sensor; }
+  void set_level_output(output::FloatOutput *level_output) { level_output_ = level_output; }
+  void set_direction_output(output::BinaryOutput *direction_output) { direction_output_ = direction_output; }
   void set_cool_output(output::FloatOutput *cool_output) { cool_output_ = cool_output; }
   void set_heat_output(output::FloatOutput *heat_output) { heat_output_ = heat_output; }
-  void set_level_and_direction_output(output::LevelAndDirectionOutput *level_and_direction_output) {
-    level_and_direction_output_ = level_and_direction_output;
-  }
   void set_kp(float kp) { controller_.kp_ = kp; }
   void set_ki(float ki) { controller_.ki_ = ki; }
   void set_kd(float kd) { controller_.kd_ = kd; }
@@ -85,8 +84,8 @@ class PIDClimate : public climate::Climate, public Component {
 
   void update_pid_();
 
-  bool supports_cool_() const { return this->level_and_direction_output_ != nullptr || this->cool_output_ != nullptr; }
-  bool supports_heat_() const { return this->level_and_direction_output_ != nullptr || this->heat_output_ != nullptr; }
+  bool supports_cool_() const { return this->direction_output_ != nullptr || this->cool_output_ != nullptr; }
+  bool supports_heat_() const { return this->direction_output_ != nullptr || this->heat_output_ != nullptr; }
 
   void write_output_(float value);
 
@@ -94,9 +93,10 @@ class PIDClimate : public climate::Climate, public Component {
   sensor::Sensor *sensor_;
   /// The sensor used for getting the current humidity
   sensor::Sensor *humidity_sensor_{nullptr};
+  output::FloatOutput *level_output_{nullptr};
+  output::BinaryOutput *direction_output_{nullptr};
   output::FloatOutput *cool_output_{nullptr};
   output::FloatOutput *heat_output_{nullptr};
-  output::LevelAndDirectionOutput *level_and_direction_output_{nullptr};
   PIDController controller_;
   /// Output value as reported by the PID controller, for PIDClimateSensor
   float output_value_;
